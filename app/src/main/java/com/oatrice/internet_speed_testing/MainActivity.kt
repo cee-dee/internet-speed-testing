@@ -4,9 +4,12 @@ import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.example.internet_speed_testing.InternetSpeedBuilder
-import com.example.internet_speed_testing.InternetSpeedBuilder.OnEventInternetSpeedListener
-import com.example.internet_speed_testing.ProgressionModel
+import com.example.internet_speed_testing.DownloadSpeedMeasurementBuilder
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
 
 class MainActivity : AppCompatActivity() {
 
@@ -27,15 +30,19 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
-        val builder = InternetSpeedBuilder(this)
-        builder.setOnEventInternetSpeedListener(object : OnEventInternetSpeedListener {
-            override fun onDownloadProgress(count: Int, progressModel: ProgressionModel) {}
-            override fun onUploadProgress(count: Int, progressModel: ProgressionModel) {}
-            override fun onTotalProgress(count: Int, progressModel: ProgressionModel) {
-                adapter.setDataList(count, progressModel)
+        val measurement = DownloadSpeedMeasurementBuilder()
+            .withUrl("https://leil.de/di/files/more/testdaten/1mb.test")
+            .withRepetitionCount(20)
+            .withProgressListener {
+                withContext(Dispatchers.Main) {
+                    adapter.updateDownload(it)
+                }
             }
-        })
-        builder.start("https://leil.de/di/files/more/testdaten/1mb.test", 20)
+            .build()
+
+        MainScope().launch {
+            measurement.run()
+        }
     }
 
 }
