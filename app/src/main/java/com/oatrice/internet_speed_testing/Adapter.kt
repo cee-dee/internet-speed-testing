@@ -49,14 +49,18 @@ class Adapter : RecyclerView.Adapter<Adapter.BandwidthViewHolder>() {
     }
 
     @SuppressLint("NotifyDataSetChanged")
-    fun updateDownload(repetition: Int, data: BandwidthResult, finishState: FinishState) {
+    fun updateDownload(repetition: Int, data: BandwidthResult?, finishState: FinishState) {
         ensureMinEntries(repetition)
         val currentEntry = dataList[repetition - 1]
-        val newEntry = currentEntry.copy(
-            percentage = data.percentage,
-            downloadResult = data.bandwidth,
+        var newEntry = currentEntry.copy(
             finishState = finishState
         )
+        data?.let { _data ->
+            newEntry = newEntry.copy(
+                percentage = _data.percentage,
+                downloadResult = _data.bandwidth,
+            )
+        }
         dataList[repetition - 1] = newEntry
 
         notifyDataSetChanged()
