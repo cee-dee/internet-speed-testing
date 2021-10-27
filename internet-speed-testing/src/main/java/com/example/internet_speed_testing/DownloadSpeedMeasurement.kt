@@ -1,79 +1,87 @@
 package com.example.internet_speed_testing
 
-import android.util.Log
 import fr.bmartel.speedtest.SpeedTestReport
 import fr.bmartel.speedtest.SpeedTestSocket
 import fr.bmartel.speedtest.inter.ISpeedTestListener
 import fr.bmartel.speedtest.model.SpeedTestError
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.IOException
 
 class DownloadSpeedMeasurement(
     private val url: String,
-    private val repetitions: Int,
-    private val listener: BandwidthListener
+    private val measurementListener: MeasurementListener
 ) {
 
-    private var countTestSpeed = 0
+    suspend fun run(): FinalMeasurementState {
 
-    suspend fun run() = withContext(Dispatchers.IO) {
+        return withContext(Dispatchers.IO) {
+
+            val currentBandwidth: MutableStateFlow<BandwidthResult?> = MutableStateFlow(null)
+            val deferredResult = CompletableDeferred<FinalMeasurementState>()
+
+            val speedTestSocket = createSpeedTest(currentBandwidth, deferredResult)
+            speedTestSocket.startDownload(url)
+
+            deferredResult.await()
+        }
+
+    }
+
+    private fun CoroutineScope.createSpeedTest(
+        currentBandwidth: MutableStateFlow<BandwidthResult?>,
+        deferredResult: CompletableDeferred<FinalMeasurementState>
+    ): SpeedTestSocket {
 
         val scope = this
-        (1..repetitions).forEach {
-            countTestSpeed = it
-            val speedTestSocket = SpeedTestSocket()
-            val deferredResult = CompletableDeferred<FinishState>()
-            // add a listener to wait for speedtest completion and progress
-            speedTestSocket.addSpeedTestListener(object : ISpeedTestListener {
+        return SpeedTestSocket().apply {
+
+            addSpeedTestListener(object : ISpeedTestListener {
 
                 override fun onCompletion(report: SpeedTestReport) {
-                    Log.v("speedtest Download $countTestSpeed", "[COMPLETED] rate in octet/s : ${report.transferRateOctet}")
-                    Log.v("speedtest Download $countTestSpeed" , "[COMPLETED] rate in bit/s   : ${report.transferRateBit}")
-                    deferredResult.complete(FinishState.COMPLETED)
+                    deferredResult.complete(
+                        FinalMeasurementState.FinishedSuccessfully(
+                            overallBandwidth = currentBandwidth.value
+                        )
+                    )
                 }
 
                 override fun onError(speedTestError: SpeedTestError, errorMessage: String) {
-                    Log.v("speedtest Download $countTestSpeed", "[FAILED]")
-                    deferredResult.complete(FinishState.FAILED)
+                    deferredResult.complete(
+                        FinalMeasurementState.FinishedWithError(
+                            overallBandwidth = currentBandwidth.value
+                        )
+                    )
                 }
 
                 override fun onProgress(percent: Float, report: SpeedTestReport) {
-                    // called to notify download/upload progress
-                    Log.v("speedtest Download $countTestSpeed", "[PROGRESS] progress : $percent%")
-                    Log.v("speedtest Download $countTestSpeed", "[PROGRESS] rate in octet/s : ${report.transferRateOctet}")
-                    Log.v("speedtest Download $countTestSpeed", "[PROGRESS] rate in bit/s   : ${report.transferRateBit}")
-
                     scope.launch {
-                        listener(
-                            BandwidthResult(
-                                countTestSpeed,
-                                percent,
-                                Bandwidth(
-                                    report.transferRateBit
-                                )
-                            )
-                        )
+                        currentBandwidth.value = reportIntermediate(percent, report)
                     }
                 }
             })
-
-            speedTestSocket.startDownload(url)
-
-            val result = deferredResult.await()
-            Log.v("finished run $countTestSpeed", "")
-
-            if (FinishState.FAILED.equals(result)) {
-                throw IOException("speed test failed")
-            }
         }
     }
 
-    enum class FinishState {
-        COMPLETED,
-        FAILED
-    }
+    private suspend fun reportIntermediate(
+        percent: Float,
+        report: SpeedTestReport
+    ): BandwidthResult {
+        val bandwidthResult = BandwidthResult(
+            percent,
+            Bandwidth(
+                report.transferRateBit
+            )
+        )
+        measurementListener(
+            IntermediateMeasurementState(
+                overallBandwidth = bandwidthResult
+            )
+        )
 
+        return bandwidthResult
+    }
 }

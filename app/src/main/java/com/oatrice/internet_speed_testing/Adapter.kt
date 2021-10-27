@@ -1,5 +1,6 @@
 package com.oatrice.internet_speed_testing;
 
+import android.annotation.SuppressLint
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -11,10 +12,16 @@ import java.math.BigDecimal
 import java.util.*
 import kotlin.math.roundToInt
 
+enum class FinishState {
+    NOT_FINISHED,
+    SUCCESS,
+    ERROR
+}
+
 data class BandwidthEntry(
     val percentage: Float,
     val downloadResult: Bandwidth,
-    val uploadResult: Bandwidth
+    val finishState: FinishState
 )
 
 class Adapter : RecyclerView.Adapter<Adapter.BandwidthViewHolder>() {
@@ -31,7 +38,7 @@ class Adapter : RecyclerView.Adapter<Adapter.BandwidthViewHolder>() {
         return BandwidthEntry(
             0f,
             createEmptyBandwidthResult(),
-            createEmptyBandwidthResult()
+            FinishState.NOT_FINISHED
         )
     }
 
@@ -41,26 +48,16 @@ class Adapter : RecyclerView.Adapter<Adapter.BandwidthViewHolder>() {
         )
     }
 
-    fun updateDownload(data: BandwidthResult) {
-        ensureMinEntries(data.repetition)
-        val currentEntry = dataList[data.repetition - 1]
+    @SuppressLint("NotifyDataSetChanged")
+    fun updateDownload(repetition: Int, data: BandwidthResult, finishState: FinishState) {
+        ensureMinEntries(repetition)
+        val currentEntry = dataList[repetition - 1]
         val newEntry = currentEntry.copy(
             percentage = data.percentage,
-            downloadResult = data.bandwidth
+            downloadResult = data.bandwidth,
+            finishState = finishState
         )
-        dataList[data.repetition - 1] = newEntry
-
-        notifyDataSetChanged()
-    }
-
-    fun updateUpload(data: BandwidthResult) {
-        ensureMinEntries(data.repetition)
-        val currentEntry = dataList[data.repetition - 1]
-        val newEntry = currentEntry.copy(
-            percentage = data.percentage,
-            uploadResult = data.bandwidth
-        )
-        dataList[data.repetition - 1] = newEntry
+        dataList[repetition - 1] = newEntry
 
         notifyDataSetChanged()
     }
@@ -84,11 +81,15 @@ class Adapter : RecyclerView.Adapter<Adapter.BandwidthViewHolder>() {
 
             val tvProgress = itemView.findViewById<TextView>(R.id.tvProgress);
             val tvDownload = itemView.findViewById<TextView>(R.id.tvDownload);
-            val tvUpload = itemView.findViewById<TextView>(R.id.tvUpload);
+            val tvFinished = itemView.findViewById<TextView>(R.id.tvFinished);
 
             tvProgress.text = formatPercent(data.percentage)
             tvDownload.text = formatBandwidth(data.downloadResult)
-            tvUpload.text = formatBandwidth(data.uploadResult)
+            tvFinished.text = when (data.finishState) {
+                FinishState.NOT_FINISHED -> "..."
+                FinishState.SUCCESS -> "yes"
+                FinishState.ERROR -> "failed"
+            }
         }
 
         private fun formatPercent(percent: Float): String {
