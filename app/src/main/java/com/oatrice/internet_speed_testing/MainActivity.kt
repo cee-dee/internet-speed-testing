@@ -40,22 +40,18 @@ class MainActivity : AppCompatActivity() {
                     .run()
                 when (result) {
                     is FinalMeasurementState.FinishedSuccessfully -> {
-                        result.overallBandwidth?.let { bandwidthResult ->
-                            adapter.updateDownload(
-                                it,
-                                bandwidthResult,
-                                FinishState.SUCCESS
-                            )
-                        }
+                        adapter.updateDownload(
+                            it,
+                            result.overallBandwidth,
+                            FinishState.SUCCESS
+                        )
                     }
                     is FinalMeasurementState.FinishedWithError -> {
-                        result.overallBandwidth?.let { bandwidthResult ->
-                            adapter.updateDownload(
-                                it,
-                                bandwidthResult,
-                                FinishState.ERROR
-                            )
-                        }
+                        adapter.updateDownload(
+                            it,
+                            result.overallBandwidth,
+                            FinishState.ERROR
+                        )
                     }
                 }
             }
@@ -75,7 +71,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun createMeasurementExecutor(listener: (IntermediateMeasurementState) -> Unit): DownloadSpeedMeasurement {
         return DownloadSpeedMeasurementBuilder()
-            .withUrl("https://leil.de/di/files/more/testdaten/10mb.test")
+            .withUrl("https://leil.de/di/files/more/testdaten/100mb.test")
             .withProgressListener {
                 withContext(Dispatchers.Main) {
                     listener(it)
